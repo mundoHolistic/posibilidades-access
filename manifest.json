@@ -1,0 +1,20 @@
+{
+  "name": "Posibilidades · MicroApp para facilitadores",
+  "short_name": "Posibilidades",
+  "description": "Organizá personas, sesiones, clases y seguimientos desde tu dispositivo.",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f7f2",
+  "theme_color": "#263b35",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

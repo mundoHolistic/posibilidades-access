@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#263b35">
+  <meta name="description" content="Una herramienta práctica para organizar personas, sesiones, clases y seguimientos.">
+  <title>Posibilidades · MicroApp</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" data-view="home" aria-label="Posibilidades, inicio">
+        <span class="brand-mark">∞</span>
+        <span><strong>POSIBILIDADES</strong><small>Una herramienta para tu práctica</small></span>
+      </a>
+      <div class="top-actions">
+        <button id="installBtn" class="btn btn-outline btn-small" hidden>Instalar app</button>
+        <button id="backupBtn" class="icon-btn" title="Exportar copia de seguridad" aria-label="Exportar copia de seguridad">↥</button>
+      </div>
+    </header>
+
+    <div id="localNotice" class="notice" role="status">
+      <span class="notice-dot"></span>
+      Tus datos se guardan en este dispositivo. Exportá una copia de seguridad con regularidad.
+      <button id="noticeClose" class="notice-close" aria-label="Cerrar aviso">×</button>
+    </div>
+
+    <main id="mainContent" tabindex="-1">
+      <section id="view-home" class="view is-active">
+        <div class="hero">
+          <div class="eyebrow">TU PRÁCTICA, EN MOVIMIENTO</div>
+          <h1>¿Qué más<br><em>es posible?</em></h1>
+          <p>Personas, sesiones, clases y nuevas posibilidades en un solo lugar.</p>
+          <div class="hero-actions">
+            <button class="btn btn-light" data-action="new-person">＋ Agregar persona</button>
+            <button class="btn btn-ghost-light" data-action="new-session">＋ Registrar sesión</button>
+          </div>
+          <div class="hero-orbit" aria-hidden="true"><span>∞</span></div>
+        </div>
+        <div id="dashboardStats" class="stats-grid"></div>
+        <div class="section-heading"><div><span class="eyebrow">PARA HOY</span><h2>Tu mapa del día</h2></div><button class="text-btn" data-view="followups">Ver seguimientos ↗</button></div>
+        <div id="todayPanel" class="stack"></div>
+        <div class="section-heading"><div><span class="eyebrow">UNA MIRADA NUEVA</span><h2>∞ Posibilidades</h2></div></div>
+        <div id="possibilityPanel" class="possibility-list"></div>
+        <div class="section-heading"><div><span class="eyebrow">PRÓXIMOS MOVIMIENTOS</span><h2>Lo que viene</h2></div></div>
+        <div id="upcomingPanel" class="stack"></div>
+      </section>
+
+      <section id="view-people" class="view">
+        <div class="page-heading"><div><span class="eyebrow">TU UNIVERSO</span><h1>Personas</h1><p>El registro de las personas que forman parte de tu práctica.</p></div><button class="btn btn-primary" data-action="new-person">＋ Nueva persona</button></div>
+        <div class="toolbar"><label class="searchbox"><span>⌕</span><input id="peopleSearch" type="search" placeholder="Buscar por nombre, ciudad o contacto"></label><select id="peopleFilter" aria-label="Filtrar personas"><option value="all">Todas las personas</option><option value="active">Activas</option><option value="inactive">En pausa</option></select></div>
+        <div id="peopleList" class="people-grid"></div>
+      </section>
+
+      <section id="view-sessions" class="view">
+        <div class="page-heading"><div><span class="eyebrow">CADA ENCUENTRO CUENTA</span><h1>Sesiones</h1><p>Registrá encuentros, contribuciones y próximos pasos.</p></div><button class="btn btn-primary" data-action="new-session">＋ Nueva sesión</button></div>
+        <div class="toolbar"><label class="searchbox"><span>⌕</span><input id="sessionsSearch" type="search" placeholder="Buscar persona o tipo"></label><select id="sessionsFilter" aria-label="Filtrar sesiones"><option value="all">Todas</option><option value="upcoming">Próximas</option><option value="past">Realizadas</option><option value="unpaid">Pago pendiente</option></select></div>
+        <div id="sessionsList" class="stack"></div>
+      </section>
+
+      <section id="view-classes" class="view">
+        <div class="page-heading"><div><span class="eyebrow">CREAR Y COMPARTIR</span><h1>Clases</h1><p>Organizá tus clases y mirá cuántos lugares quedan disponibles.</p></div><button class="btn btn-primary" data-action="new-class">＋ Nueva clase</button></div>
+        <div id="classesList" class="classes-grid"></div>
+      </section>
+
+      <section id="view-followups" class="view">
+        <div class="page-heading"><div><span class="eyebrow">VOLVER A MIRAR</span><h1>Seguimientos</h1><p>Un espacio para retomar el contacto cuando tenga sentido.</p></div><button class="btn btn-primary" data-action="new-followup">＋ Nuevo seguimiento</button></div>
+        <div class="tabs" role="tablist"><button class="tab is-active" data-follow-filter="today">Hoy <span id="countToday">0</span></button><button class="tab" data-follow-filter="upcoming">Próximos <span id="countUpcoming">0</span></button><button class="tab" data-follow-filter="overdue">Vencidos <span id="countOverdue">0</span></button><button class="tab" data-follow-filter="done">Hechos</button></div>
+        <div id="followupsList" class="stack"></div>
+      </section>
+
+      <section id="view-possibilities" class="view">
+        <div class="page-heading"><div><span class="eyebrow">MIRAR DESDE OTRO LUGAR</span><h1>∞ Posibilidades</h1><p>Señales de tu actividad y preguntas que pueden abrir otra perspectiva.</p></div></div>
+        <div id="possibilitiesFull" class="possibility-list"></div>
+        <div class="question-card">
+          <span class="question-symbol">∞</span><span class="eyebrow">UNA PREGUNTA PARA VOS</span>
+          <p id="questionOfTheMoment">¿Qué más podrías elegir hoy que todavía no consideraste?</p>
+          <button class="btn btn-outline" id="newQuestionBtn">Otra pregunta ↻</button>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="page-heading"><div><span class="eyebrow">TU INFORMACIÓN</span><h1>Datos y ajustes</h1><p>La información es tuya y permanece en este dispositivo.</p></div></div>
+        <div class="settings-grid">
+          <article class="settings-card"><div class="settings-icon">↥</div><h3>Exportar copia</h3><p>Descargá un archivo con tus personas, sesiones, clases y seguimientos para guardar o trasladar tus datos.</p><button class="btn btn-primary" id="exportBtn">Exportar datos</button></article>
+          <article class="settings-card"><div class="settings-icon">↧</div><h3>Importar copia</h3><p>Restaurá una copia exportada previamente. Los registros importados se combinan con los actuales; no se borran los que ya existen.</p><label class="btn btn-outline file-label">Elegir archivo JSON<input type="file" id="importFile" accept=".json,application/json"></label></article>
+          <article class="settings-card"><div class="settings-icon">▣</div><h3>Instalar en tu dispositivo</h3><p>En navegadores compatibles podés instalarla desde el botón superior. En iPhone/iPad, abrí el menú Compartir de Safari y elegí “Agregar a pantalla de inicio”. En computadora, buscá “Instalar” en la barra del navegador.</p><button class="btn btn-outline" id="installHelpBtn">Ver instrucciones</button></article>
+          <article class="settings-card danger-zone"><div class="settings-icon">!</div><h3>Eliminar todos los datos</h3><p>Esta acción elimina de este dispositivo todas las personas, sesiones, clases y seguimientos. Antes, exportá una copia si querés conservarlos.</p><button class="btn btn-danger" id="clearDataBtn">Eliminar mis datos</button></article>
+        </div>
+        <p class="privacy-note"><strong>Privacidad:</strong> esta versión no crea cuentas ni envía tus registros a un servidor. Si borrás los datos del navegador, cambiás de dispositivo o perdés el equipo, podés perder la información que no hayas exportado. Las copias de seguridad contienen información personal: guardalas en un lugar seguro.</p>
+        <div class="app-version">POSIBILIDADES · Versión 1.0 · Datos locales</div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item is-active" data-view="home"><span>⌂</span><small>Inicio</small></button>
+      <button class="nav-item" data-view="people"><span>♧</span><small>Personas</small></button>
+      <button class="nav-item" data-view="sessions"><span>◷</span><small>Sesiones</small></button>
+      <button class="nav-item" data-view="classes"><span>▤</span><small>Clases</small></button>
+      <button class="nav-item" data-view="followups"><span>↗</span><small>Seguimientos</small></button>
+      <button class="nav-item nav-more" data-view="possibilities"><span>∞</span><small>Posibilidades</small></button>
+    </nav>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
