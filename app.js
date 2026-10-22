@@ -367,7 +367,7 @@
   }
   function openSessionDetail(id) {
     const s=state.data.sessions.find(x=>x.id===id);if(!s)return;
-    const body=`<div class="detail-list">${detailItem("Persona",personName(s.personId))}${detailItem("Fecha",fmtDate(s.date))}${detailItem("Hora",s.time)}${detailItem("Tipo",s.type)}${detailItem("Duración",s.duration)}${detailItem("Valor",s.value!==""&&s.value!=null?fmtMoney(s.value):"")}${detailItem("Pago",s.paymentStatus==="paid"?"Pagado":s.paymentStatus==="partial"?"Parcial":"Pendiente")}${detailItem("Próximo seguimiento",s.nextFollowupDate?fmtDate(s.nextFollowupDate):"")}</div><div class="detail-section"><h3>Notas</h3><p>${safeText(s.notes||"Sin notas registradas.")}</p></div><div class="modal-actions"><button class="btn btn-danger" data-action="delete-record" data-store="sessions" data-id="${s.id}">Eliminar</button><div class="modal-actions-right"><button class="btn btn-outline" data-action="close-modal">Cerrar</button><button class="btn btn-primary" data-action="edit-session" data-id="${s.id}">Editar sesión</button></div></div>`;
+    const body=`<div class="detail-list">${detailItem("Persona",personName(s.personId))}${detailItem("Fecha",fmtDate(s.date))}${detailItem("Hora",s.time)}${detailItem("Tipo",s.type)}${detailItem("Duración",s.duration)}${detailItem("Valor",s.value!==""&&s.value!=null?fmtMoney(s.value):"")}${detailItem("Pago",s.paymentStatus==="paid"?"Pagado":s.paymentStatus==="partial"?"Parcial":"Pendiente")}${detailItem("Próximo seguimiento",s.nextFollowupDate?fmtDate(s.nextFollowupDate):"")}</div><div class="detail-section"><h3>Notas</h3><p>${safeText(s.notes||"Sin notas registradas.")}</p></div><div class="modal-actions"><button class="btn btn-danger" data-action="delete-record" data-store="sessions" data-id="${s.id}">Eliminar</button><div class="modal-actions-right"><button class="btn btn-outline" data-action="close-modal">Cerrar</button><button class="btn btn-outline" data-action="calendar-session" data-id="${s.id}">Agendar en calendario</button><button class="btn btn-primary" data-action="edit-session" data-id="${s.id}">Editar sesión</button></div></div>`;
     openModal(`${s.type||"Sesión"}`,personName(s.personId),body);
   }
   function openClassDetail(id) {
@@ -389,26 +389,39 @@
     openModal(f.title||"Seguimiento",personName(f.personId),`<div class="detail-list">${detailItem("Persona",personName(f.personId))}${detailItem("Fecha",fmtDate(f.date))}${detailItem("Hora",f.time)}${detailItem("Estado",f.done?"Hecho":followStatus(f)==="overdue"?"Vencido":followStatus(f)==="today"?"Hoy":"Próximo")}</div><div class="detail-section"><p>${safeText(f.notes||"Sin notas.")}</p></div><div class="modal-actions"><button class="btn btn-danger" data-action="delete-record" data-store="followups" data-id="${f.id}">Eliminar</button><div class="modal-actions-right"><button class="btn btn-outline" data-action="close-modal">Cerrar</button><button class="btn btn-primary" data-action="edit-followup" data-id="${f.id}">Cambiar fecha</button></div></div>`);
   }
 
-  function downloadSessionReminder(personNameText, date, time) {
-    if (!date || !time) return false;
-    const sessionDate = new Date(`${date}T${time}:00`);
-    if (Number.isNaN(sessionDate.getTime())) return false;
-    const reminderDate = new Date(sessionDate.getTime() - 24 * 60 * 60 * 1000);
-    const endDate = new Date(reminderDate.getTime() + 15 * 60 * 1000);
-    const stamp = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-    const escapeICS = text => String(text || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
-    const ics = [
-      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Posibilidades MicroApp//ES", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-      "BEGIN:VEVENT", `UID:${uid()}@posibilidades.local`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(reminderDate)}`, `DTEND:${stamp(endDate)}`,
-      `SUMMARY:${escapeICS(`Contactar a ${personNameText} antes de la próxima sesión`)}`,
-      `DESCRIPTION:${escapeICS(`Recordatorio de Posibilidades: contactar a ${personNameText}. La próxima sesión está prevista para ${fmtDate(date)} a las ${time}.`)}`,
-      "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:Contactar antes de la próxima sesión", "END:VALARM", "END:VEVENT", "END:VCALENDAR"
-    ].join("\r\n");
-    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url; link.download = "recordatorio-proxima-sesion.ics"; document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  function openSessionInCalendar(session, personNameText) {
+    if (!session?.date) return false;
+    const dateCompact = value => String(value || "").replace(/-/g, "");
+    const durationMatch = String(session.duration || "60 minutos").match(/(\d+(?:[.,]\d+)?)/);
+    const durationText = String(session.duration || "60 minutos").toLowerCase();
+    let durationMinutes = durationMatch ? Number(durationMatch[1].replace(",", ".")) : 60;
+    if (/hora/.test(durationText) && !/min/.test(durationText)) durationMinutes *= 60;
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0 || durationMinutes > 1440) durationMinutes = 60;
+
+    let dates;
+    if (session.time) {
+      const start = new Date(`${session.date}T${session.time}:00`);
+      if (Number.isNaN(start.getTime())) return false;
+      const end = new Date(start.getTime() + durationMinutes * 60000);
+      const compactLocal = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
+      dates = `${compactLocal(start)}/${compactLocal(end)}`;
+    } else {
+      const nextDay = new Date(`${session.date}T12:00:00`);
+      nextDay.setDate(nextDay.getDate() + 1);
+      dates = `${dateCompact(session.date)}/${dateCompact(`${nextDay.getFullYear()}-${String(nextDay.getMonth()+1).padStart(2,"0")}-${String(nextDay.getDate()).padStart(2,"0")}`)}`;
+    }
+
+    const title = `${session.type || "Sesión"} · ${personNameText}`;
+    const details = `Sesión registrada en Posibilidades. Persona: ${personNameText}. Tipo: ${session.type || "Sesión"}${session.notes ? `. Notas: ${session.notes}` : ""}`;
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: title,
+      dates,
+      details,
+      ctz: "America/Argentina/Buenos_Aires"
+    });
+    const calendarUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
+    window.open(calendarUrl, "_blank", "noopener,noreferrer");
     return true;
   }
 
@@ -428,10 +441,6 @@
         }
         closeModal();
         toast("Sesión guardada.");
-        if(nextFollowupDate && data.nextFollowupTime && confirm("¿Querés preparar un archivo de calendario con un recordatorio para contactar a esta persona 24 horas antes de la próxima sesión? Después tendrás que abrir o importar el archivo en tu calendario para que el dispositivo lo gestione.")) {
-          const person = personById(data.personId);
-          if(!downloadSessionReminder(person?.name || "la persona", nextFollowupDate, data.nextFollowupTime)) toast("No se pudo preparar el recordatorio. Revisá fecha y hora.");
-        }
       } else if(form.id==="classForm"){
         if(!data.name.trim()||!data.date){toast("Completá el nombre y la fecha de la clase.");return;}
         const existing=state.data.classes.find(c=>c.id===id);
@@ -523,6 +532,11 @@
       case "new-session":closeModal();openSessionForm(null,person||"");break;
       case "edit-session":closeModal();openSessionForm(id);break;
       case "view-session":openSessionDetail(id);break;
+      case "calendar-session":{
+        const session=state.data.sessions.find(item=>item.id===id);
+        if(session){const person=personById(session.personId);if(!openSessionInCalendar(session,person?.name||"la persona"))toast("No se pudo abrir el calendario. Revisá la fecha de la sesión.");}
+        break;
+      }
       case "new-class":openClassForm();break;
       case "edit-class":closeModal();openClassForm(id);break;
       case "view-class":openClassDetail(id);break;
