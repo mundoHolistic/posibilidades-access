@@ -1,4 +1,4 @@
-const CACHE_NAME = "posibilidades-shell-v2";
+const CACHE_NAME = "posibilidades-shell-v4";
 const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", event => {
