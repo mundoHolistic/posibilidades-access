@@ -26,6 +26,10 @@
   };
   const personName = id => state.data.people.find(p => p.id === id)?.name || "Persona eliminada";
   const personById = id => state.data.people.find(p => p.id === id);
+  const attendeeIsExternal = attendee => attendee && typeof attendee === "object" && attendee.kind === "external";
+  const attendeeId = attendee => attendeeIsExternal(attendee) ? attendee.id : attendee;
+  const attendeeName = attendee => attendeeIsExternal(attendee) ? (attendee.name || "Asistente externo") : (personById(attendee)?.name || "Persona eliminada");
+  const attendeeValue = attendee => attendeeIsExternal(attendee) ? `external:${attendee.id}` : `person:${attendee}`;
   const isPast = date => date && date < todayISO();
   const isFutureOrToday = date => date && date >= todayISO();
   const sortByDate = (a,b) => (a.date || "").localeCompare(b.date || "") || (a.time || "").localeCompare(b.time || "");
@@ -207,11 +211,20 @@
     $("#sessionsList").innerHTML=list.length?list.map(s=>`<article class="row-card"><div class="avatar">◷</div><div class="row-main"><strong>${escapeHTML(personName(s.personId))} · ${escapeHTML(s.type||"Sesión")}</strong><p>${fmtDate(s.date)} · ${escapeHTML(s.time||"Horario a definir")} · ${escapeHTML(s.duration||"Duración no indicada")}</p><p>${escapeHTML(s.paymentStatus==="paid"?"Pago registrado":s.paymentStatus==="partial"?"Pago parcial":"Pago pendiente")} · ${escapeHTML(fmtMoney(s.value))}</p></div><div class="row-end"><span class="pill ${s.paymentStatus==="paid"?"":s.paymentStatus==="partial"?"gold":"rose"}">${s.paymentStatus==="paid"?"Pagada":s.paymentStatus==="partial"?"Parcial":"Pendiente"}</span><button class="mini-btn" data-action="view-session" data-id="${s.id}">Detalles</button></div></article>`).join(""):emptyState("No hay sesiones para mostrar","Registrá una sesión o cambiá el filtro.","＋ Nueva sesión","new-session");
   }
   function renderClasses() {
-    const list=state.data.classes;
-    $("#classesList").innerHTML=list.length?list.map(c=>{
-      const occupied=(c.attendees||[]).length,capacity=Math.max(0,Number(c.capacity||0)),spots=Math.max(0,capacity-occupied),pct=capacity?Math.min(100,occupied/capacity*100):0;
-      return `<article class="class-card"><div class="class-top"><div><span class="eyebrow">${escapeHTML(c.modality||"CLASE")}</span><h3>${escapeHTML(c.name)}</h3><p class="muted">${fmtDate(c.date)} · ${escapeHTML(c.time||"Horario a definir")}</p></div><span class="pill ${spots===0?"rose":"gold"}">${spots===0?"Completa":`${spots} disponibles`}</span></div><p class="muted">${escapeHTML([c.place,c.price!==""&&c.price!=null?fmtMoney(c.price):""].filter(Boolean).join(" · "))}</p><div class="capacity-bar"><span style="width:${pct}%"></span></div><div class="capacity-numbers"><span>${occupied} ocupados</span><span>${capacity} cupos</span></div><div class="person-actions"><button class="mini-btn primary" data-action="view-class" data-id="${c.id}">Ver clase</button><button class="mini-btn" data-action="edit-class" data-id="${c.id}">Editar</button><button class="mini-btn" data-action="attendees-class" data-id="${c.id}">Gestionar asistentes</button></div></article>`;
-    }).join(""):emptyState("Todavía no hay clases","Creá una clase para organizar fecha, cupo, asistentes y lugares disponibles.","＋ Nueva clase","new-class");
+    const all = state.data.classes;
+    const upcoming = all.filter(c => !isPast(c.date)).sort(sortByDate);
+    const past = all.filter(c => isPast(c.date)).sort((a,b) => sortByDate(b,a));
+    const card = c => {
+      const attendees = c.attendees || [];
+      const occupied = attendees.length, capacity = Math.max(0, Number(c.capacity || 0));
+      const spots = Math.max(0, capacity - occupied), pct = capacity ? Math.min(100, occupied / capacity * 100) : 0;
+      return `<article class="class-card"><div class="class-top"><div><span class="eyebrow">${escapeHTML(c.modality || "CLASE")}</span><h3>${escapeHTML(c.name)}</h3><p class="muted">${fmtDate(c.date)} · ${escapeHTML(c.time || "Horario a definir")}</p></div><span class="pill ${isPast(c.date) ? "gray" : spots === 0 ? "rose" : "gold"}">${isPast(c.date) ? "Realizada" : spots === 0 ? "Completa" : `${spots} disponibles`}</span></div><p class="muted">${escapeHTML([c.place, c.price !== "" && c.price != null ? fmtMoney(c.price) : ""].filter(Boolean).join(" · "))}</p><div class="capacity-bar"><span style="width:${pct}%"></span></div><div class="capacity-numbers"><span>${occupied} ocupados</span><span>${capacity} cupos</span></div><div class="person-actions"><button class="mini-btn primary" data-action="view-class" data-id="${c.id}">Ver clase</button><button class="mini-btn" data-action="edit-class" data-id="${c.id}">Editar</button>${!isPast(c.date) ? `<button class="mini-btn" data-action="attendees-class" data-id="${c.id}">Gestionar asistentes</button>` : ""}</div></article>`;
+    };
+    if (!all.length) {
+      $("#classesList").innerHTML = emptyState("Todavía no hay clases", "Creá una clase para organizar fecha, cupo, asistentes y lugares disponibles.", "＋ Nueva clase", "new-class");
+      return;
+    }
+    $("#classesList").innerHTML = `<section class="class-section"><h2>Clases disponibles</h2><div class="classes-grid">${upcoming.length ? upcoming.map(card).join("") : `<p class="muted">No tenés clases próximas registradas.</p>`}</div></section><section class="class-section"><h2>Clases anteriores</h2><div class="classes-grid">${past.length ? past.map(card).join("") : `<p class="muted">Las clases realizadas quedarán acá cuando pase su fecha.</p>`}</div></section>`;
   }
   function followStatus(f) {
     if(f.done) return "done";
@@ -230,27 +243,67 @@
       return `<article class="row-card"><div class="avatar">${f.done?"✓":"↗"}</div><div class="row-main"><strong>${escapeHTML(personName(f.personId))} · ${escapeHTML(f.title||"Seguimiento")}</strong><p>${fmtDate(f.date)} ${f.time?`· ${escapeHTML(f.time)}`:""}${f.notes?` · ${escapeHTML(f.notes)}`:""}</p><p>${status==="overdue"?"Fecha vencida":status==="today"?"Para hoy":status==="done"?"Marcado como hecho":"Próximo"}</p></div><div class="row-end">${!f.done?`<button class="mini-btn primary" data-action="contact-person" data-id="${f.id}">Contactar</button><button class="mini-btn" data-action="done-followup" data-id="${f.id}">Hecho</button>`:""}<button class="mini-btn" data-action="edit-followup" data-id="${f.id}">Cambiar fecha</button></div></article>`;
     }).join(""):emptyState(state.followFilter==="today"?"Hoy no hay seguimientos":state.followFilter==="upcoming"?"No hay seguimientos próximos":state.followFilter==="overdue"?"No hay seguimientos vencidos":"Todavía no hay seguimientos hechos","Podés registrar un seguimiento cuando quieras volver a mirar una posibilidad.", "＋ Nuevo seguimiento","new-followup");
   }
-  const QUESTIONS=[
-    "¿Qué más es posible que todavía no hayas considerado?",
-    "¿Qué elección abriría más posibilidades para tu práctica hoy?",
-    "¿Qué podrías crear si dejaras de hacer esto como siempre?",
-    "¿Qué contribución podrías ser para las personas que te eligen?",
-    "¿Qué posibilidad está disponible ahora que antes no veías?",
-    "¿Qué más podrías elegir sin tener que justificarlo?",
-    "¿Qué podría ser más fácil de lo que imaginás?",
-    "¿Qué pregunta todavía no te hiciste?"
+  const QUESTIONS = [
+    "¿Qué posibilidad hay en tu vida que todavía no te permitiste mirar?",
+    "Si hoy no tuvieras que demostrarle nada a nadie, ¿qué elegirías?",
+    "¿Qué deseo tuyo merece un poco más de espacio?",
+    "¿Qué podrías hacer hoy solo porque te da alegría?",
+    "¿Qué estás sosteniendo por costumbre que ya podrías elegir distinto?",
+    "¿Qué parte de tu vida te gustaría volver más liviana?",
+    "¿Qué te gustaría probar si no necesitaras tener todo resuelto?",
+    "¿Qué conversación pendiente con vos misma sería una contribución?",
+    "¿Qué estás esperando que alguien más te habilite?",
+    "¿Qué elección pequeña podría cambiar el tono de tu día?",
+    "¿Qué te gustaría recibir y qué te impide estar disponible para eso?",
+    "¿Qué parte de vos dejás para después demasiado seguido?",
+    "¿Qué sería posible si dejaras de compararte por un momento?",
+    "¿Qué te gustaría aprender por puro gusto?",
+    "¿Qué lugar, persona o actividad te hace sentir más vos?",
+    "¿Qué podrías dejar de complicar hoy?",
+    "¿Qué te estás diciendo que ya no querés seguir creyendo?",
+    "¿Qué te gustaría que tuviera más presencia en tu vida?",
+    "¿Qué estás eligiendo para evitar incomodar a alguien?",
+    "¿Qué sería amable con vos en este momento?",
+    "¿Qué posibilidad no estás viendo porque ya decidiste cómo tiene que ser?",
+    "¿Qué te entusiasma y hace cuánto no le dedicás tiempo?",
+    "¿Qué podrías pedir en vez de esperar que lo adivinen?",
+    "¿Qué límite te daría más espacio para ser vos?",
+    "¿Qué te gustaría celebrar de vos, aunque parezca pequeño?",
+    "¿Qué parte de tu rutina ya no acompaña la vida que querés?",
+    "¿Qué harías distinto si confiaras un poco más en tu criterio?",
+    "¿Qué te gustaría crear sin convertirlo en una obligación?",
+    "¿Qué estás lista para dejar de postergar?",
+    "¿Qué podrías elegir hoy que tu yo de mañana agradecería?",
+    "¿Dónde estás diciendo que sí cuando en realidad querés decir que no?",
+    "¿Qué te gustaría explorar sin tener que ponerle una etiqueta?",
+    "¿Qué posibilidad se abre si no necesitás tener razón?",
+    "¿Qué te gustaría hacer más a menudo y qué primer paso sería posible?",
+    "¿Qué estás haciendo por expectativa ajena y no por elección propia?",
+    "¿Qué te daría más libertad esta semana?",
+    "¿Qué parte de tu vida merece una conversación honesta?",
+    "¿Qué podés recibir hoy que antes habrías descartado?",
+    "¿Qué te gustaría que fuera diferente dentro de un mes?",
+    "¿Qué más es posible para vos que todavía no consideraste?"
   ];
+  function dailyQuestionIndex() {
+    const key = `posibilidades-question-${todayISO()}`;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null && Number.isInteger(Number(saved))) return Number(saved) % QUESTIONS.length;
+      const randomIndex = Math.floor(Math.random() * QUESTIONS.length);
+      localStorage.setItem(key, String(randomIndex));
+      return randomIndex;
+    } catch (_) {
+      return Math.floor(Math.random() * QUESTIONS.length);
+    }
+  }
   function contextQuestion() {
-    const p=state.data.people, follow=openFollowups(), upcoming=state.data.classes.filter(c=>isFutureOrToday(c.date)), unpaid=state.data.sessions.filter(s=>s.paymentStatus!=="paid"&&s.value!==""&&s.value!=null);
-    if(!p.length)return "¿A quién más podrías invitar a formar parte de tu universo?";
-    if(follow.length>p.length)return "¿Qué más podrías crear con las personas que ya te eligieron?";
-    if(upcoming.some(c=>Number(c.capacity||0)>(c.attendees||[]).length))return "¿Qué podría hacer que tu próxima clase sea todavía más grande de lo que imaginaste?";
-    if(unpaid.length)return "¿Qué elección diferente podrías hacer con respecto a tu intercambio?";
-    return QUESTIONS[state.questionIndex%QUESTIONS.length];
+    return QUESTIONS[((state.questionIndex % QUESTIONS.length) + QUESTIONS.length) % QUESTIONS.length];
   }
   function renderPossibilities() {
-    $("#possibilitiesFull").innerHTML=getPossibilities().map(possibilityCard).join("");
-    $("#questionOfTheMoment").textContent=contextQuestion();
+    // Esta sección es un oráculo de preguntas personales; no depende de los datos laborales.
+    $("#possibilitiesFull").innerHTML = "";
+    $("#questionOfTheMoment").textContent = contextQuestion();
   }
   function renderAll() {
     renderDashboard();
@@ -289,7 +342,7 @@
   function openSessionForm(id=null,personId="") {
     if(!state.data.people.length){toast("Primero agregá una persona.");openPersonForm();return;}
     const s=id?state.data.sessions.find(x=>x.id===id):{};
-    const body=`<form id="sessionForm" data-id="${id||""}"><div class="form-grid">${field("Persona","personId",s.personId||personId,"select",{options:personOptions(s.personId||personId),required:true,full:true})}${field("Fecha","date",s.date||todayISO(),"date",{required:true})}${field("Hora","time",s.time||"")}${field("Tipo de sesión","type",s.type||"Barras de Access","text",{required:true})}${field("Duración","duration",s.duration||"60 minutos","text")}${field("Valor / contribución (ARS)","value",s.value??"","number",{min:0,step:"0.01",hint:"Podés dejarlo vacío si no corresponde."})}${field("Estado del pago","paymentStatus",s.paymentStatus||"pending","select",{options:[{value:"pending",label:"Pendiente"},{value:"partial",label:"Parcial"},{value:"paid",label:"Pagado"}]})}${field("Próximo seguimiento","nextFollowupDate",s.nextFollowupDate||"","date")}${field("Notas","notes",s.notes||"","textarea",{full:true})}</div>${formActions(id,"sessions")}</form>`;
+    const body=`<form id="sessionForm" data-id="${id||""}"><div class="form-grid">${field("Persona","personId",s.personId||personId,"select",{options:personOptions(s.personId||personId),required:true,full:true})}${field("Fecha","date",s.date||todayISO(),"date",{required:true})}${field("Hora","time",s.time||"")}${field("Tipo de sesión","type",s.type||"Barras de Access","text",{required:true})}${field("Duración","duration",s.duration||"60 minutos","text")}${field("Valor / contribución (ARS)","value",s.value??"","number",{min:0,step:"0.01",hint:"Podés dejarlo vacío si no corresponde."})}${field("Estado del pago","paymentStatus",s.paymentStatus||"pending","select",{options:[{value:"pending",label:"Pendiente"},{value:"partial",label:"Parcial"},{value:"paid",label:"Pagado"}]})}${field("Fecha de próxima sesión","nextFollowupDate",s.nextFollowupDate||"","date",{hint:"Si la completás, podrás preparar un recordatorio para contactar a la persona 24 horas antes."})}${field("Hora de próxima sesión","nextFollowupTime",s.nextFollowupTime||"")} ${field("Notas","notes",s.notes||"","textarea",{full:true})}</div>${formActions(id,"sessions")}</form>`;
     openModal(id?"Editar sesión":"Registrar sesión","Un registro claro para cada encuentro.",body);
   }
   function openClassForm(id=null) {
@@ -320,19 +373,43 @@
   function openClassDetail(id) {
     const c=state.data.classes.find(x=>x.id===id);if(!c)return;
     const attendees=c.attendees||[],cap=Number(c.capacity||0),spots=Math.max(0,cap-attendees.length);
-    const body=`<div class="detail-list">${detailItem("Clase",c.name)}${detailItem("Fecha",fmtDate(c.date))}${detailItem("Hora",c.time)}${detailItem("Modalidad",c.modality)}${detailItem("Lugar / enlace",c.place)}${detailItem("Cupo total",String(cap))}${detailItem("Ocupados",String(attendees.length))}${detailItem("Disponibles",String(spots))}${detailItem("Precio",c.price!==""&&c.price!=null?fmtMoney(c.price):"")}</div><div class="detail-section"><h3>Asistentes</h3>${attendees.length?attendees.map(pid=>`<article class="row-card"><div class="avatar">${escapeHTML(initials(personName(pid)))}</div><div class="row-main"><strong>${escapeHTML(personName(pid))}</strong></div><button class="mini-btn" data-action="remove-attendee" data-class="${c.id}" data-person="${pid}">Quitar</button></article>`).join(""):"<p class='muted'>Todavía no hay asistentes anotados.</p>"}</div><div class="inline-actions"><button class="mini-btn primary" data-action="attendees-class" data-id="${c.id}">Gestionar asistentes</button></div><div class="detail-section"><p class="muted">¿A quién podrías invitar para ocupar los lugares que quedan?</p></div><div class="modal-actions"><button class="btn btn-danger" data-action="delete-record" data-store="classes" data-id="${c.id}">Eliminar clase</button><div class="modal-actions-right"><button class="btn btn-outline" data-action="close-modal">Cerrar</button><button class="btn btn-primary" data-action="edit-class" data-id="${c.id}">Editar clase</button></div></div>`;
+    const body=`<div class="detail-list">${detailItem("Clase",c.name)}${detailItem("Fecha",fmtDate(c.date))}${detailItem("Hora",c.time)}${detailItem("Modalidad",c.modality)}${detailItem("Lugar / enlace",c.place)}${detailItem("Cupo total",String(cap))}${detailItem("Ocupados",String(attendees.length))}${detailItem("Disponibles",String(spots))}${detailItem("Precio",c.price!==""&&c.price!=null?fmtMoney(c.price):"")}</div><div class="detail-section"><h3>Asistentes</h3>${attendees.length?attendees.map(att=>`<article class="row-card"><div class="avatar">${escapeHTML(initials(attendeeName(att)))}</div><div class="row-main"><strong>${escapeHTML(attendeeName(att))}</strong>${attendeeIsExternal(att)?`<small class="muted">Sin ficha de persona</small>`:""}</div><button class="mini-btn" data-action="remove-attendee" data-class="${c.id}" data-person="${escapeHTML(attendeeValue(att))}">Quitar</button></article>`).join(""):"<p class='muted'>Todavía no hay asistentes anotados.</p>"}</div><div class="inline-actions"><button class="mini-btn primary" data-action="attendees-class" data-id="${c.id}">Gestionar asistentes</button></div><div class="detail-section"><p class="muted">¿A quién podrías invitar para ocupar los lugares que quedan?</p></div><div class="modal-actions"><button class="btn btn-danger" data-action="delete-record" data-store="classes" data-id="${c.id}">Eliminar clase</button><div class="modal-actions-right"><button class="btn btn-outline" data-action="close-modal">Cerrar</button><button class="btn btn-primary" data-action="edit-class" data-id="${c.id}">Editar clase</button></div></div>`;
     openModal(c.name,"Cupo y lista de asistentes.",body);
   }
   function openAttendeesModal(id) {
-    const c=state.data.classes.find(x=>x.id===id);if(!c)return;
-    if(!state.data.people.length){toast("Primero agregá personas para poder anotarlas.");openPersonForm();return;}
-    const attendees=c.attendees||[];
-    const body=`<form id="attendeesForm" data-id="${id}"><p class="muted">Marcá las personas que asistirán. Cupo: ${Number(c.capacity||0)} · Ya anotadas: ${attendees.length}.</p><div class="attendee-options">${state.data.people.map(p=>`<label class="attendee-option"><input type="checkbox" name="attendee" value="${p.id}" ${attendees.includes(p.id)?"checked":""}><span><strong>${escapeHTML(p.name)}</strong><small>${escapeHTML(p.city||p.activity||"")}</small></span></label>`).join("")}</div><div class="modal-actions"><button class="btn btn-outline" type="button" data-action="close-modal">Cancelar</button><div class="modal-actions-right"><button class="btn btn-primary" type="submit">Guardar asistentes</button></div></div></form>`;
-    openModal("Gestionar asistentes",c.name,body);
+    const c = state.data.classes.find(x => x.id === id); if (!c) return;
+    const attendees = c.attendees || [];
+    const registered = attendees.filter(a => !attendeeIsExternal(a));
+    const external = attendees.filter(attendeeIsExternal);
+    const body = `<form id="attendeesForm" data-id="${id}"><p class="muted">Marcá quiénes asistirán. También podés anotar a alguien que no tenga ficha en Personas. Cupo: ${Number(c.capacity || 0)} · Ya anotadas: ${attendees.length}.</p><div class="attendee-options">${state.data.people.map(p => `<label class="attendee-option"><input type="checkbox" name="attendee" value="person:${escapeHTML(p.id)}" ${registered.some(a => a === p.id) ? "checked" : ""}><span><strong>${escapeHTML(p.name)}</strong><small>${escapeHTML(p.city || p.activity || "")}</small></span></label>`).join("")}${external.map(a => `<label class="attendee-option"><input type="checkbox" name="attendee" value="external:${escapeHTML(a.id)}" checked><span><strong>${escapeHTML(a.name || "Asistente externo")}</strong><small>Sin ficha de persona</small></span></label>`).join("")}</div><div class="field full"><label for="externalAttendeeName">Agregar asistente sin ficha</label><input id="externalAttendeeName" name="externalAttendeeName" type="text" maxlength="100" placeholder="Nombre o apodo"></div><div class="modal-actions"><button class="btn btn-outline" type="button" data-action="close-modal">Cancelar</button><div class="modal-actions-right"><button class="btn btn-primary" type="submit">Guardar asistentes</button></div></div></form>`;
+    openModal("Gestionar asistentes", c.name, body);
   }
   function openFollowupDetail(id) {
     const f=state.data.followups.find(x=>x.id===id);if(!f)return;
     openModal(f.title||"Seguimiento",personName(f.personId),`<div class="detail-list">${detailItem("Persona",personName(f.personId))}${detailItem("Fecha",fmtDate(f.date))}${detailItem("Hora",f.time)}${detailItem("Estado",f.done?"Hecho":followStatus(f)==="overdue"?"Vencido":followStatus(f)==="today"?"Hoy":"Próximo")}</div><div class="detail-section"><p>${safeText(f.notes||"Sin notas.")}</p></div><div class="modal-actions"><button class="btn btn-danger" data-action="delete-record" data-store="followups" data-id="${f.id}">Eliminar</button><div class="modal-actions-right"><button class="btn btn-outline" data-action="close-modal">Cerrar</button><button class="btn btn-primary" data-action="edit-followup" data-id="${f.id}">Cambiar fecha</button></div></div>`);
+  }
+
+  function downloadSessionReminder(personNameText, date, time) {
+    if (!date || !time) return false;
+    const sessionDate = new Date(`${date}T${time}:00`);
+    if (Number.isNaN(sessionDate.getTime())) return false;
+    const reminderDate = new Date(sessionDate.getTime() - 24 * 60 * 60 * 1000);
+    const endDate = new Date(reminderDate.getTime() + 15 * 60 * 1000);
+    const stamp = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    const escapeICS = text => String(text || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+    const ics = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Posibilidades MicroApp//ES", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+      "BEGIN:VEVENT", `UID:${uid()}@posibilidades.local`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(reminderDate)}`, `DTEND:${stamp(endDate)}`,
+      `SUMMARY:${escapeICS(`Contactar a ${personNameText} antes de la próxima sesión`)}`,
+      `DESCRIPTION:${escapeICS(`Recordatorio de Posibilidades: contactar a ${personNameText}. La próxima sesión está prevista para ${fmtDate(date)} a las ${time}.`)}`,
+      "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:Contactar antes de la próxima sesión", "END:VALARM", "END:VEVENT", "END:VCALENDAR"
+    ].join("\r\n");
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = "recordatorio-proxima-sesion.ics"; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
   }
 
   async function handleFormSubmit(form) {
@@ -345,11 +422,16 @@
       } else if(form.id==="sessionForm"){
         if(!data.personId||!data.date||!data.type.trim()){toast("Completá persona, fecha y tipo de sesión.");return;}
         const nextFollowupDate=data.nextFollowupDate;
-        await saveRecord("sessions",{...data,id,value:data.value===""?"":Number(data.value),duration:data.duration||"",paymentStatus:data.paymentStatus||"pending",notes:data.notes||""});
+        await saveRecord("sessions",{...data,id,value:data.value===""?"":Number(data.value),duration:data.duration||"",paymentStatus:data.paymentStatus||"pending",notes:data.notes||"",nextFollowupTime:data.nextFollowupTime||""});
         if(nextFollowupDate){
-          await saveRecord("followups",{id:uid(),personId:data.personId,date:nextFollowupDate,time:"",title:"Volver a mirar después de la sesión",notes:"Seguimiento sugerido al registrar la sesión.",done:false,sourceSessionId:id});
+          await saveRecord("followups",{id:uid(),personId:data.personId,date:nextFollowupDate,time:data.nextFollowupTime||"",title:"Contactar antes de la próxima sesión",notes:"Recordatorio sugerido al registrar la sesión.",done:false,sourceSessionId:id});
         }
-        closeModal();toast("Sesión guardada. ¿Cuándo sería una contribución volver a mirar esta posibilidad?");
+        closeModal();
+        toast("Sesión guardada.");
+        if(nextFollowupDate && data.nextFollowupTime && confirm("¿Querés preparar un archivo de calendario con un recordatorio para contactar a esta persona 24 horas antes de la próxima sesión? Después tendrás que abrir o importar el archivo en tu calendario para que el dispositivo lo gestione.")) {
+          const person = personById(data.personId);
+          if(!downloadSessionReminder(person?.name || "la persona", nextFollowupDate, data.nextFollowupTime)) toast("No se pudo preparar el recordatorio. Revisá fecha y hora.");
+        }
       } else if(form.id==="classForm"){
         if(!data.name.trim()||!data.date){toast("Completá el nombre y la fecha de la clase.");return;}
         const existing=state.data.classes.find(c=>c.id===id);
@@ -364,7 +446,15 @@
         closeModal();toast("Seguimiento guardado.");
       } else if(form.id==="attendeesForm"){
         const c=state.data.classes.find(x=>x.id===form.dataset.id);if(!c)return;
-        const attendees=$$('input[name="attendee"]:checked',form).map(x=>x.value);
+        const selected=$$('input[name="attendee"]:checked',form).map(x=>x.value);
+        const attendees=selected.map(value=>{
+          if(value.startsWith("external:")) return (c.attendees||[]).find(a=>attendeeIsExternal(a)&&a.id===value.slice(9));
+          return value.startsWith("person:") ? value.slice(7) : value;
+        }).filter(Boolean);
+        const externalName=String(data.externalAttendeeName||"").trim();
+        if(externalName){
+          if(!attendees.some(a=>attendeeIsExternal(a)&&a.name.toLocaleLowerCase("es-AR")===externalName.toLocaleLowerCase("es-AR"))) attendees.push({kind:"external",id:uid(),name:externalName});
+        }
         if(attendees.length>Number(c.capacity||0)){toast(`El cupo es de ${c.capacity}. Hay ${attendees.length} personas seleccionadas.`);return;}
         await saveRecord("classes",{...c,attendees});
         closeModal();toast("Asistentes actualizados.");
@@ -438,7 +528,12 @@
       case "view-class":openClassDetail(id);break;
       case "attendees-class":closeModal();openAttendeesModal(id);break;
       case "remove-attendee":{
-        const c=state.data.classes.find(x=>x.id===el.dataset.class);if(c){saveRecord("classes",{...c,attendees:(c.attendees||[]).filter(pid=>pid!==person)}).then(()=>{closeModal();openClassDetail(c.id);toast("Asistente quitado.");});}
+        const c=state.data.classes.find(x=>x.id===el.dataset.class);
+        if(c){
+          const key=person||"";
+          const attendees=(c.attendees||[]).filter(a=>attendeeValue(a)!==key && String(a)!==key);
+          saveRecord("classes",{...c,attendees}).then(()=>{closeModal();openClassDetail(c.id);toast("Asistente quitado.");});
+        }
         break;
       }
       case "new-followup":closeModal();openFollowupForm(null,person||"");break;
@@ -490,7 +585,8 @@
   });
   $("#installHelpBtn").addEventListener("click",installApp);
   $("#installBtn").addEventListener("click",installApp);
-  $("#newQuestionBtn").addEventListener("click",()=>{state.questionIndex++;$("#questionOfTheMoment").textContent=contextQuestion();});
+  state.questionIndex = dailyQuestionIndex();
+  $("#newQuestionBtn").addEventListener("click",()=>{state.questionIndex=(state.questionIndex+1)%QUESTIONS.length;try{localStorage.setItem(`posibilidades-question-${todayISO()}`,String(state.questionIndex));}catch(_){}$("#questionOfTheMoment").textContent=contextQuestion();});
   $("#noticeClose").addEventListener("click",()=>$("#localNotice").hidden=true);
   window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();state.installPrompt=e;$("#installBtn").hidden=false;});
   window.addEventListener("appinstalled",()=>{state.installPrompt=null;$("#installBtn").hidden=true;toast("Posibilidades quedó instalada en tu dispositivo.");});
