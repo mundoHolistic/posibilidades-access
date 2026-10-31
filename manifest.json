@@ -1,13 +1,24 @@
 {
-  "name": "Posibilidades · MicroApp para facilitadores",
-  "short_name": "Posibilidades",
-  "description": "Organizá personas, sesiones, clases y seguimientos desde tu dispositivo.",
-  "lang": "es-AR",
+  "name": "Mi Universo | Agenda",
+  "short_name": "Mi Universo",
+  "description": "Agenda para sesiones, turnos disponibles y experiencias.",
   "start_url": "./",
-  "scope": "./",
   "display": "standalone",
-  "orientation": "any",
-  "background_color": "#f6f7f2",
-  "theme_color": "#263b35",
-  "icons": [{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "background_color": "#fbf4f2",
+  "theme_color": "#251c25",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
